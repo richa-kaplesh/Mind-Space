@@ -1,282 +1,200 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 const MOODS = [
-  { emoji: "😄", label: "Happy",     color: "#FFD93D" },
-  { emoji: "😌", label: "Calm",      color: "#7BAE9E" },
-  { emoji: "😔", label: "Sad",       color: "#8A9BAE" },
-  { emoji: "😤", label: "Frustrated",color: "#E8A090" },
-  { emoji: "😰", label: "Anxious",   color: "#C3A6D4" },
-  { emoji: "🥰", label: "Grateful",  color: "#E8A0B4" },
-  { emoji: "😴", label: "Tired",     color: "#B0C4DE" },
-  { emoji: "🔥", label: "Motivated", color: "#D4A853" },
+  { emoji: "😄", label: "Happy",      color: "#e8a84a" },
+  { emoji: "😌", label: "Calm",       color: "#7bae9e" },
+  { emoji: "😔", label: "Sad",        color: "#8a9bae" },
+  { emoji: "😤", label: "Frustrated", color: "#c4785a" },
+  { emoji: "😰", label: "Anxious",    color: "#a08ab4" },
+  { emoji: "🥰", label: "Grateful",   color: "#c4785a" },
+  { emoji: "😴", label: "Tired",      color: "#9aacbe" },
+  { emoji: "🔥", label: "Motivated",  color: "#b85c38" },
 ];
 
 const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
-const load = (k) => { 
-  try { 
-    return JSON.parse(localStorage.getItem(k)) || []; 
-  } catch { 
-    return []; 
-  } 
-};
+const load = (k) => { try { return JSON.parse(localStorage.getItem(k)) || []; } catch { return []; } };
 
-export default function MoodTracker() {
+function getDaysInMonth(year, month) {
+  return new Date(year, month + 1, 0).getDate();
+}
+function getFirstDayOfMonth(year, month) {
+  const day = new Date(year, month, 1).getDay();
+  return day === 0 ? 6 : day - 1;
+}
+
+export default function MoodJournal() {
   const [entries, setEntries] = useState(() => load("mindspace_mood"));
   const [selectedMood, setSelectedMood] = useState(null);
+  const [saved, setSaved] = useState(false);
 
-  const today = new Date().toLocaleDateString("en-IN", {
-    weekday: "long", month: "long", day: "numeric"
-  });
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const todayDate = now.getDate();
+  const monthName = now.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
-  // Check if mood already logged today
-  const todaysMood = entries.find(e => {
-    const entryDate = new Date(e.date).toDateString();
-    const currentDate = new Date().toDateString();
-    return entryDate === currentDate;
+  const todaysMood = entries.find(e =>
+    new Date(e.date).toDateString() === now.toDateString()
+  );
+
+  const moodByDay = {};
+  entries.forEach(e => {
+    const d = new Date(e.date);
+    if (d.getFullYear() === year && d.getMonth() === month) {
+      moodByDay[d.getDate()] = e.mood;
+    }
   });
 
   const saveMood = () => {
-    if (!selectedMood) {
-      alert('Please select a mood first!');
-      return;
-    }
-
-    // If already logged today, update it
+    if (!selectedMood) return;
+    let updated;
     if (todaysMood) {
-      const updated = entries.map(e => {
-        const entryDate = new Date(e.date).toDateString();
-        const currentDate = new Date().toDateString();
-        if (entryDate === currentDate) {
-          return {
-            ...e,
-            mood: selectedMood,
-            date: new Date().toISOString(),
-          };
-        }
-        return e;
-      });
-      setEntries(updated);
-      save("mindspace_mood", updated);
+      updated = entries.map(e =>
+        new Date(e.date).toDateString() === now.toDateString()
+          ? { ...e, mood: selectedMood, date: new Date().toISOString() }
+          : e
+      );
     } else {
-      // Create new entry
-      const entry = {
-        id: Date.now(),
-        date: new Date().toISOString(),
-        mood: selectedMood,
-      };
-      const updated = [entry, ...entries];
-      setEntries(updated);
-      save("mindspace_mood", updated);
+      updated = [{ id: Date.now(), date: new Date().toISOString(), mood: selectedMood }, ...entries];
     }
-
+    setEntries(updated);
+    save("mindspace_mood", updated);
     setSelectedMood(null);
-    alert('Mood saved!');
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
 
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDay = getFirstDayOfMonth(year, month);
+  const dayLabels = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+
   return (
-    <div>
-      {/* Header */}
-      <div style={{ marginBottom: "28px" }}>
-        <div style={{ 
-          fontFamily: "DM Serif Display, serif", 
-          fontSize: "1.8rem", 
-          color: "#1a1a2e" 
-        }}>
-          How are you <em style={{ color: "#c45c82" }}>feeling?</em>
+    <div style={{ width: "100%" }}>
+
+      {/* Page header */}
+      <div style={{ marginBottom: "24px" }}>
+        <div className="page-title">
+          How are you <em style={{ color: "#b85c38", fontStyle: "italic" }}>feeling?</em>
         </div>
-        <div style={{ 
-          fontSize: "0.82rem", 
-          color: "#aaa", 
-          marginTop: "4px" 
-        }}>
-          {today}
+        <div className="page-sub">
+          {now.toLocaleDateString("en-IN", { weekday: "long", month: "long", day: "numeric" })}
         </div>
       </div>
 
-      {/* Today's mood banner (if already logged) */}
-      {todaysMood && (
+      {/* Calendar — full width */}
+      <div className="card" style={{ marginBottom: "16px", width: "100%" }}>
+        <div className="section-label" style={{ marginBottom: "14px" }}>{monthName}</div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "6px", marginBottom: "6px" }}>
+          {dayLabels.map(d => (
+            <div key={d} style={{
+              textAlign: "center", fontSize: "0.68rem", color: "#a07060",
+              fontWeight: 500, letterSpacing: "0.06em", padding: "2px 0"
+            }}>{d}</div>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "6px" }}>
+          {Array.from({ length: firstDay }).map((_, i) => (
+            <div key={`empty-${i}`} style={{ aspectRatio: "1" }} />
+          ))}
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const day = i + 1;
+            const mood = moodByDay[day];
+            const isToday = day === todayDate;
+            return (
+              <div key={day} style={{
+                aspectRatio: "1",
+                borderRadius: "10px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                background: mood ? "#f5e8e0" : "transparent",
+                border: isToday ? "1.5px solid #b85c38" : "0.5px solid transparent",
+                transition: "background 0.2s",
+              }}>
+                {mood
+                  ? <span style={{ fontSize: "1.4rem", lineHeight: 1 }}>{mood.emoji}</span>
+                  : <span style={{ fontSize: "0.78rem", color: isToday ? "#b85c38" : "#c4a99a" }}>{day}</span>
+                }
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Today's mood banner */}
+      {todaysMood && !selectedMood && (
         <div style={{
-          background: todaysMood.mood.color + "22",
-          border: `1.5px solid ${todaysMood.mood.color}`,
-          borderRadius: "16px",
-          padding: "16px 20px",
-          marginBottom: "20px",
-          display: "flex",
-          alignItems: "center",
-          gap: "12px"
+          background: "#f5e8e0", border: "0.5px solid #ddc8bc",
+          borderRadius: "12px", padding: "14px 18px", marginBottom: "16px",
+          display: "flex", alignItems: "center", gap: "12px",
         }}>
-          <span style={{ fontSize: "1.8rem" }}>{todaysMood.mood.emoji}</span>
-          <div>
-            <div style={{ 
-              fontWeight: 600, 
-              fontSize: "0.9rem", 
-              color: "#1a1a2e" 
-            }}>
-              Today you're feeling {todaysMood.mood.label}
+          <span style={{ fontSize: "1.5rem" }}>{todaysMood.mood.emoji}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "0.85rem", fontWeight: 500, color: "#1a1008" }}>
+              Feeling {todaysMood.mood.label} today
             </div>
-            <div style={{ 
-              fontSize: "0.72rem", 
-              color: "#888", 
-              marginTop: "2px" 
-            }}>
-              Logged at {new Date(todaysMood.date).toLocaleTimeString("en-IN", { 
-                hour: "2-digit", 
-                minute: "2-digit" 
-              })}
+            <div style={{ fontSize: "0.7rem", color: "#a07060", marginTop: "2px" }}>
+              Logged at {new Date(todaysMood.date).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
             </div>
           </div>
+          <button
+            onClick={() => setSelectedMood(todaysMood.mood)}
+            style={{
+              fontSize: "0.7rem", color: "#b85c38", background: "none",
+              border: "0.5px solid #ddc8bc", borderRadius: "8px",
+              padding: "4px 10px", cursor: "pointer",
+            }}
+          >
+            Update
+          </button>
         </div>
       )}
 
       {/* Mood picker */}
-      <div style={{
-        background: "white", 
-        borderRadius: "20px", 
-        border: "1.5px solid #f0d6e4",
-        padding: "24px", 
-        marginBottom: "16px"
-      }}>
-        <div style={{ 
-          fontSize: "0.72rem", 
-          fontWeight: 600, 
-          color: "#aaa", 
-          letterSpacing: "0.08em", 
-          textTransform: "uppercase", 
-          marginBottom: "16px" 
-        }}>
+      <div className="card">
+        <div className="section-label">
           {todaysMood ? "Update your mood" : "Pick your mood"}
         </div>
-        
-        <div style={{ 
-          display: "flex", 
-          gap: "10px", 
-          flexWrap: "wrap",
-          marginBottom: "16px"
-        }}>
+
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
           {MOODS.map(m => (
-            <button 
-              key={m.label} 
-              onClick={() => setSelectedMood(m)} 
+            <button
+              key={m.label}
+              onClick={() => setSelectedMood(m)}
               style={{
-                display: "flex", 
-                flexDirection: "column", 
-                alignItems: "center", 
-                gap: "4px",
-                padding: "12px 16px", 
-                borderRadius: "14px",
-                border: `1.5px solid ${selectedMood?.label === m.label ? m.color : "#f0d6e4"}`,
-                background: selectedMood?.label === m.label ? m.color + "22" : "white",
-                cursor: "pointer", 
-                transition: "all .2s",
-                transform: selectedMood?.label === m.label ? "translateY(-2px)" : "none",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: "4px",
+                padding: "10px 14px", borderRadius: "10px", cursor: "pointer",
+                border: selectedMood?.label === m.label ? "1.5px solid #b85c38" : "0.5px solid #ddc8bc",
+                background: selectedMood?.label === m.label ? "#f0ddd3" : "#fff9f6",
+                transition: "all 0.15s",
               }}
             >
-              <span style={{ fontSize: "1.6rem" }}>{m.emoji}</span>
-              <span style={{ 
-                fontSize: "0.68rem", 
-                fontWeight: 600, 
-                color: "#aaa" 
-              }}>
-                {m.label}
-              </span>
+              <span style={{ fontSize: "1.4rem" }}>{m.emoji}</span>
+              <span style={{ fontSize: "0.62rem", color: "#a07060", fontWeight: 500 }}>{m.label}</span>
             </button>
           ))}
         </div>
 
-        <button 
-          onClick={saveMood} 
-          disabled={!selectedMood} 
+        <button
+          onClick={saveMood}
+          disabled={!selectedMood}
           style={{
-            width: "100%", 
-            padding: "14px",
-            background: selectedMood ? "#1a1a2e" : "#f0d6e4",
-            color: selectedMood ? "white" : "#cbb",
-            border: "none", 
-            borderRadius: "14px", 
-            fontFamily: "DM Sans, sans-serif",
-            fontSize: "0.9rem", 
-            fontWeight: 500, 
-            cursor: selectedMood ? "pointer" : "not-allowed", 
-            transition: "all .2s"
+            width: "100%", padding: "12px",
+            background: selectedMood ? "#1a1008" : "#f0ddd3",
+            color: selectedMood ? "#fdf6f2" : "#a07060",
+            border: "none", borderRadius: "10px",
+            fontFamily: "DM Sans, sans-serif", fontSize: "0.82rem",
+            fontWeight: 500, cursor: selectedMood ? "pointer" : "not-allowed",
+            transition: "all 0.2s",
           }}
         >
-          {todaysMood ? "Update Mood" : "Save Mood"}
+          {saved ? "Saved ✓" : todaysMood ? "Update mood" : "Save mood"}
         </button>
       </div>
 
-      {/* Mood history */}
-      {entries.length > 0 && (
-        <div>
-          <div style={{ 
-            fontSize: "0.72rem", 
-            fontWeight: 600, 
-            color: "#aaa", 
-            letterSpacing: "0.08em", 
-            textTransform: "uppercase", 
-            marginBottom: "14px" 
-          }}>
-            Mood History (Last 7 days)
-          </div>
-          
-          {entries.slice(0, 7).map(e => (
-            <div 
-              key={e.id} 
-              style={{
-                background: "white", 
-                borderRadius: "16px", 
-                border: "1.5px solid #f0d6e4",
-                padding: "16px 20px", 
-                marginBottom: "10px",
-                display: "flex", 
-                gap: "14px", 
-                alignItems: "center"
-              }}
-            >
-              <span style={{ fontSize: "1.8rem" }}>{e.mood.emoji}</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ 
-                  fontWeight: 600, 
-                  fontSize: "0.82rem", 
-                  color: "#1a1a2e" 
-                }}>
-                  {e.mood.label}
-                </div>
-                <div style={{ 
-                  fontSize: "0.72rem", 
-                  color: "#aaa", 
-                  marginTop: "2px" 
-                }}>
-                  {new Date(e.date).toLocaleDateString("en-IN", { 
-                    month: "short", 
-                    day: "numeric",
-                    weekday: "short"
-                  })} · {new Date(e.date).toLocaleTimeString("en-IN", { 
-                    hour: "2-digit", 
-                    minute: "2-digit" 
-                  })}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Empty state */}
-      {entries.length === 0 && (
-        <div style={{
-          background: "white",
-          borderRadius: "16px",
-          border: "1.5px solid #f0d6e4",
-          padding: "40px 20px",
-          textAlign: "center",
-          color: "#aaa"
-        }}>
-          <div style={{ fontSize: "2rem", marginBottom: "8px" }}>🌸</div>
-          <div style={{ fontSize: "0.85rem" }}>
-            No mood entries yet. Start tracking how you feel!
-          </div>
-        </div>
-      )}
     </div>
   );
 }
